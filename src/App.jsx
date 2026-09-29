@@ -143,8 +143,10 @@ export default function App() {
     switch (filters.sort) {
       case 'count_desc': sorted.sort((a, b) => b.count - a.count); break
       case 'count_asc':  sorted.sort((a, b) => a.count - b.count); break
-      case 'ma_asc':     sorted.sort((a, b) => a.ma.localeCompare(b.ma)); break
-      case 'ma_desc':    sorted.sort((a, b) => b.ma.localeCompare(a.ma)); break
+      case 'ma_asc':     sorted.sort((a, b) => a.ma.localeCompare(b.ma, 'vi')); break
+      case 'ma_desc':    sorted.sort((a, b) => b.ma.localeCompare(a.ma, 'vi')); break
+      case 'mau_asc':    sorted.sort((a, b) => a.mau.localeCompare(b.mau, 'vi')); break
+      case 'mau_desc':   sorted.sort((a, b) => b.mau.localeCompare(a.mau, 'vi')); break
     }
 
     return sorted

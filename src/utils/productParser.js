@@ -10,42 +10,37 @@ export const SIZE_LIST = [
   '7XL', '6XL', '5XL', '4XL', '3XL', '2XL',
   'L', 'M', 'S',
 ]
-// Sorted longest-first so matching greedily picks XXXL before XXL before XL
 const SIZE_SET = new Set(SIZE_LIST)
 
 /**
- * Normalize a string: trim, collapse whitespace, uppercase.
+ * Normalize a string: trim, collapse ALL whitespace variants, uppercase.
+ * Handles non-breaking space ( ), thin space ( ), zero-width (​),
+ * and other Unicode space characters Excel commonly produces.
  */
 export function normalize(str) {
   if (str == null) return ''
-  return String(str).trim().replace(/\s+/g, ' ').toUpperCase()
+  return String(str)
+    // Replace ALL Unicode whitespace + zero-width chars with regular ASCII space
+    .replace(/[ ­͏؜ᅟᅠ឴឵᠎ -‏‪-  -⁠⠀　﻿ﾠ]/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toUpperCase()
 }
 
-/**
- * Check if a token is a SIZE.
- */
 function isSize(token) {
   return SIZE_SET.has(token)
 }
 
 /**
- * Check if a token qualifies as a MÃ (product code).
- * Rule: must contain at least one digit.
- * Examples: G98, A25, 1B, B2C → YES
- * Examples: ĐEN, HỒNG, XANH → NO
+ * A token is a MÃ (product code) if it contains at least one digit.
+ * G98, A25, 1B → YES | ĐEN, HỒNG, XANH → NO
  */
 function isMa(token) {
   return /\d/.test(token)
 }
 
 /**
- * Parse a single segment (after splitting by " + ").
- * Returns { ma, mau, size } or null if unparseable.
- * `lastMa` is inherited from previous segment if this one has no MÃ.
- *
- * @param {string} segment - normalized segment string
- * @param {string|null} lastMa - MÃ inherited from previous segment
- * @returns {{ product: {ma,mau,size}|null, error: string|null, newMa: string|null }}
+ * Parse a single segment (after splitting by +).
  */
 function parseSegment(segment, lastMa) {
   const tokens = segment.split(' ').filter(Boolean)
@@ -54,7 +49,7 @@ function parseSegment(segment, lastMa) {
     return { product: null, error: null, newMa: lastMa }
   }
 
-  // Find SIZE: last token that is in SIZE_SET
+  // SIZE must be the last token
   const lastToken = tokens[tokens.length - 1]
   if (!isSize(lastToken)) {
     return {
@@ -75,7 +70,7 @@ function parseSegment(segment, lastMa) {
     }
   }
 
-  // Determine MÃ: first token if it contains a digit
+  // MÃ is first token if it contains a digit; otherwise inherit
   let ma
   let mauTokens
 
@@ -83,31 +78,20 @@ function parseSegment(segment, lastMa) {
     ma = remaining[0]
     mauTokens = remaining.slice(1)
   } else {
-    // No MÃ in this segment — inherit from previous
     ma = lastMa
     mauTokens = remaining
   }
 
   if (!ma) {
-    return {
-      product: null,
-      error: 'Không xác định được MÃ',
-      newMa: null,
-    }
+    return { product: null, error: 'Không xác định được MÃ', newMa: null }
   }
 
   if (mauTokens.length === 0) {
-    return {
-      product: null,
-      error: 'Không xác định được MÀU',
-      newMa: ma,
-    }
+    return { product: null, error: 'Không xác định được MÀU', newMa: ma }
   }
 
-  const mau = mauTokens.join(' ')
-
   return {
-    product: { ma, mau, size },
+    product: { ma, mau: mauTokens.join(' '), size },
     error: null,
     newMa: ma,
   }
@@ -115,20 +99,17 @@ function parseSegment(segment, lastMa) {
 
 /**
  * Parse a raw cell value into products and errors.
- *
- * @param {string} rawValue - raw string from Excel cell
- * @param {object} context - { fileName, sheetName, rowIndex } for error reporting
- * @returns {{ products: Array<{ma,mau,size}>, errors: Array<object> }}
+ * Splits on any whitespace-padded + sign: "A+B", "A + B", "A +B", "A+ B" all work.
  */
 export function parseCell(rawValue, context = {}) {
   const normalized = normalize(rawValue)
+  if (!normalized) return { products: [], errors: [] }
 
-  if (!normalized) {
-    return { products: [], errors: [] }
-  }
-
-  // Split on " + " (space-plus-space) to handle multiple products per cell
-  const segments = normalized.split(' + ').map(s => s.trim()).filter(Boolean)
+  // Split on + with optional surrounding whitespace (handles "A+B", "A + B", etc.)
+  const segments = normalized
+    .split(/\s*\+\s*/)
+    .map(s => s.trim())
+    .filter(Boolean)
 
   const products = []
   const errors = []
@@ -141,13 +122,7 @@ export function parseCell(rawValue, context = {}) {
       products.push(product)
       lastMa = newMa
     } else if (error) {
-      errors.push({
-        ...context,
-        rawValue,
-        segment,
-        reason: error,
-      })
-      // Keep lastMa unchanged so next segment can still inherit
+      errors.push({ ...context, rawValue, segment, reason: error })
     }
   }
 

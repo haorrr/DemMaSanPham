@@ -5,6 +5,8 @@ const SORT_OPTIONS = [
   { value: 'count_asc', label: 'Số lượng ↑ (thấp → cao)' },
   { value: 'ma_asc', label: 'Mã A → Z' },
   { value: 'ma_desc', label: 'Mã Z → A' },
+  { value: 'mau_asc', label: 'Màu A → Z' },
+  { value: 'mau_desc', label: 'Màu Z → A' },
 ]
 
 export default function FilterBar({ allProducts, filters, onFiltersChange, filteredCount }) {
