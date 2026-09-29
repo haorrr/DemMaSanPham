@@ -57,9 +57,13 @@ export function normalize(str) {
   if (str == null) return ''
 
   // Step 1: NFC — unify Vietnamese diacritics from Excel (NFD) with browser strings (NFC)
-  const s = String(str).normalize('NFC')
+  let s = String(str).normalize('NFC')
 
-  // Step 2: Replace all Unicode whitespace variants with plain ASCII space, char-by-char
+  // Step 2: Strip parenthetical notes anywhere in the string, e.g. "(đúng size)", "( 2 )", "(sz 3)"
+  // These are customer notes and must be ignored before parsing.
+  s = s.replace(/\([^)]*\)/g, ' ')
+
+  // Step 3: Replace all Unicode whitespace variants with plain ASCII space, char-by-char
   let result = ''
   for (let i = 0; i < s.length; i++) {
     const cp = s.codePointAt(i)
@@ -68,7 +72,7 @@ export function normalize(str) {
     result += isWhitespaceCodePoint(cp) ? ' ' : s[i]
   }
 
-  // Step 3: Trim, collapse spaces, uppercase
+  // Step 4: Trim, collapse spaces, uppercase
   return result.trim().replace(/ +/g, ' ').toUpperCase()
 }
 

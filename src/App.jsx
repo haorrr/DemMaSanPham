@@ -176,6 +176,10 @@ export default function App() {
             <h1 className="text-xl font-bold text-gray-900 leading-tight">TOOL ĐẾM MÃ SẢN PHẨM</h1>
             <p className="text-sm text-gray-500">Tải lên file Excel · Tự động đọc và đếm theo MÃ + MÀU + SIZE</p>
           </div>
+          <div className="ml-auto text-right hidden sm:block">
+            <p className="text-xs text-gray-400">Tác giả</p>
+            <p className="text-sm font-semibold text-indigo-600">Võ Hoàn Hảo</p>
+          </div>
         </div>
       </header>
 
