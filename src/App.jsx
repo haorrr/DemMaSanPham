@@ -98,11 +98,15 @@ export default function App() {
         parseErrors.push(...rowErrors)
 
         for (const p of products) {
-          const key = `${p.ma}|${p.mau}|${p.size}`
+          // Extra safety: trim each field before building key
+          const ma = p.ma.trim()
+          const mau = p.mau.trim()
+          const size = p.size.trim()
+          const key = `${ma}|${mau}|${size}`
           if (countMap.has(key)) {
             countMap.get(key).count++
           } else {
-            countMap.set(key, { ...p, count: 1, key })
+            countMap.set(key, { ma, mau, size, count: 1, key })
           }
         }
       }

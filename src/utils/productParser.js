@@ -1,6 +1,6 @@
 /**
  * productParser.js
- * Parses product strings of format "MÃ MÀU SIZE" from Excel cells.
+ * Parses product strings of format "MA MAU SIZE" from Excel cells.
  * Handles: multi-word colors, + separator with code inheritance, Vietnamese Unicode.
  */
 
@@ -13,18 +13,63 @@ export const SIZE_LIST = [
 const SIZE_SET = new Set(SIZE_LIST)
 
 /**
- * Normalize a string: trim, collapse ALL whitespace variants, uppercase.
- * Handles non-breaking space ( ), thin space ( ), zero-width (​),
- * and other Unicode space characters Excel commonly produces.
+ * Return true if char code is any kind of whitespace or invisible character.
+ * Used in normalizeCharByChar() to handle all Unicode whitespace variants
+ * without putting literal Unicode chars inside regex (esbuild issue).
+ */
+function isWhitespaceCodePoint(cp) {
+  // ASCII whitespace
+  if (cp === 0x09 || cp === 0x0A || cp === 0x0D || cp === 0x20) return true
+  // Common Unicode spaces from Excel:
+  // U+00A0 NO-BREAK SPACE, U+00AD SOFT HYPHEN
+  if (cp === 0x00A0 || cp === 0x00AD) return true
+  // U+2000-U+200B (various typographic spaces, zero-width space)
+  if (cp >= 0x2000 && cp <= 0x200B) return true
+  // U+200C ZWNJ, U+200D ZWJ, U+200E LRM, U+200F RLM
+  if (cp >= 0x200C && cp <= 0x200F) return true
+  // U+2028 LINE SEP, U+2029 PARA SEP
+  if (cp === 0x2028 || cp === 0x2029) return true
+  // U+202A-U+202F (bidi controls and narrow no-break space)
+  if (cp >= 0x202A && cp <= 0x202F) return true
+  // U+205F MEDIUM MATH SPACE, U+2060 WORD JOINER, U+2061-U+2064
+  if (cp >= 0x205F && cp <= 0x2064) return true
+  // U+3000 IDEOGRAPHIC SPACE
+  if (cp === 0x3000) return true
+  // U+FEFF BOM / ZERO WIDTH NO-BREAK SPACE
+  if (cp === 0xFEFF) return true
+  // U+FFA0 HALFWIDTH HANGUL FILLER
+  if (cp === 0xFFA0) return true
+  return false
+}
+
+/**
+ * Normalize a string for consistent key generation.
+ *
+ * ROOT CAUSE OF DUPLICATE KEYS:
+ * Excel stores Vietnamese chars in NFD (base + combining diacritics).
+ * JS strings / browser input use NFC. Same visual char = different bytes = different Map keys.
+ * Example: "G98 ĐỎ L" from Excel (NFD) !== "G98 ĐỎ L" in browser (NFC) → counted as 2 rows.
+ *
+ * Fix: .normalize('NFC') collapses both representations into one canonical form,
+ * then we replace all Unicode whitespace variants char-by-char (avoids esbuild regex issues).
  */
 export function normalize(str) {
   if (str == null) return ''
-  return String(str)
-    // Replace ALL Unicode whitespace + zero-width chars with regular ASCII space
-    .replace(/[ ­͏؜ᅟᅠ឴឵᠎ -‏‪-  -⁠⠀　﻿ﾠ]/g, ' ')
-    .trim()
-    .replace(/\s+/g, ' ')
-    .toUpperCase()
+
+  // Step 1: NFC — unify Vietnamese diacritics from Excel (NFD) with browser strings (NFC)
+  const s = String(str).normalize('NFC')
+
+  // Step 2: Replace all Unicode whitespace variants with plain ASCII space, char-by-char
+  let result = ''
+  for (let i = 0; i < s.length; i++) {
+    const cp = s.codePointAt(i)
+    // Skip surrogate pairs second char
+    if (cp > 0xFFFF) i++
+    result += isWhitespaceCodePoint(cp) ? ' ' : s[i]
+  }
+
+  // Step 3: Trim, collapse spaces, uppercase
+  return result.trim().replace(/ +/g, ' ').toUpperCase()
 }
 
 function isSize(token) {
@@ -32,8 +77,8 @@ function isSize(token) {
 }
 
 /**
- * A token is a MÃ (product code) if it contains at least one digit.
- * G98, A25, 1B → YES | ĐEN, HỒNG, XANH → NO
+ * A token is a MA (product code) if it contains at least one digit.
+ * G98, A25, 1B -> YES | DEN, HONG, XANH -> NO
  */
 function isMa(token) {
   return /\d/.test(token)
@@ -70,7 +115,7 @@ function parseSegment(segment, lastMa) {
     }
   }
 
-  // MÃ is first token if it contains a digit; otherwise inherit
+  // MA is first token if it contains a digit; otherwise inherit from previous
   let ma
   let mauTokens
 
@@ -83,11 +128,19 @@ function parseSegment(segment, lastMa) {
   }
 
   if (!ma) {
-    return { product: null, error: 'Không xác định được MÃ', newMa: null }
+    return {
+      product: null,
+      error: 'Không xác định được MÃ',
+      newMa: null,
+    }
   }
 
   if (mauTokens.length === 0) {
-    return { product: null, error: 'Không xác định được MÀU', newMa: ma }
+    return {
+      product: null,
+      error: 'Không xác định được MÀU',
+      newMa: ma,
+    }
   }
 
   return {
@@ -99,13 +152,17 @@ function parseSegment(segment, lastMa) {
 
 /**
  * Parse a raw cell value into products and errors.
- * Splits on any whitespace-padded + sign: "A+B", "A + B", "A +B", "A+ B" all work.
+ * Splits on + with any surrounding whitespace: "A+B", "A + B", "A +B" all work.
+ *
+ * @param {string} rawValue
+ * @param {object} context - { fileName, sheetName, rowIndex }
+ * @returns {{ products: Array<{ma,mau,size}>, errors: Array<object> }}
  */
 export function parseCell(rawValue, context = {}) {
   const normalized = normalize(rawValue)
   if (!normalized) return { products: [], errors: [] }
 
-  // Split on + with optional surrounding whitespace (handles "A+B", "A + B", etc.)
+  // Split on + with optional surrounding whitespace
   const segments = normalized
     .split(/\s*\+\s*/)
     .map(s => s.trim())

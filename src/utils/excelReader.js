@@ -1,28 +1,31 @@
 /**
  * excelReader.js
  * Reads Excel files in the browser using SheetJS.
- * Finds the "SẢN PHẨM" column across all sheets and returns raw rows.
+ * Finds the "SAN PHAM" column across all sheets and returns raw rows.
  */
 
 import * as XLSX from 'xlsx'
 import { normalize } from './productParser.js'
 
-// Accepted column header variants
-const COLUMN_VARIANTS = [
-  'SẢN PHẨM',
+// Accepted column header variants — stored uppercase + NFC so they match normalize() output
+const RAW_COLUMN_VARIANTS = [
+  'SảN PHẩM',   // SẢN PHẨM
   'SAN PHAM',
   'SANPHAM',
-  'SẢN PHẦM',  // common typo with wrong tone
-  'SAN PHẨM',
+  'SảN PHầM',   // SẢN PHẦM (typo)
+  'SAN PHẩM',        // SAN PHẨM
 ]
+// Apply same normalize() so comparison is always apples-to-apples
+const COLUMN_VARIANTS = new Set(RAW_COLUMN_VARIANTS.map(v => v.normalize('NFC').toUpperCase()))
 
 /**
- * Check if a header cell value matches the SẢN PHẨM column.
+ * Check if a header cell value matches the SAN PHAM column.
+ * Uses the same normalize() as the product parser to guarantee consistent comparison.
  */
 function isProductColumn(headerValue) {
   if (headerValue == null) return false
   const norm = normalize(String(headerValue))
-  return COLUMN_VARIANTS.includes(norm)
+  return COLUMN_VARIANTS.has(norm)
 }
 
 /**
@@ -32,22 +35,18 @@ function readFileAsArrayBuffer(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = (e) => resolve(e.target.result)
-    reader.onerror = () => reject(new Error(`Không thể đọc file: ${file.name}`))
+    reader.onerror = () => reject(new Error('Không thể đọc file: ' + file.name))
     reader.readAsArrayBuffer(file)
   })
 }
 
 /**
- * Find the column index of "SẢN PHẨM" in a sheet's first row.
- * Returns null if not found.
- *
- * @param {XLSX.WorkSheet} sheet
- * @returns {string|null} column letter (e.g. "A", "B")
+ * Find the column index of "SAN PHAM" in a sheet.
+ * Scans the first 10 rows in case there are metadata rows above headers.
  */
 function findProductColumnIndex(sheet) {
   const range = XLSX.utils.decode_range(sheet['!ref'] || 'A1')
 
-  // Check first few rows for header (in case there are metadata rows above)
   for (let r = range.s.r; r <= Math.min(range.s.r + 9, range.e.r); r++) {
     for (let c = range.s.c; c <= range.e.c; c++) {
       const cellAddr = XLSX.utils.encode_cell({ r, c })
@@ -64,10 +63,8 @@ function findProductColumnIndex(sheet) {
 /**
  * Read a single Excel file and return all raw product rows.
  *
- * @param {File} file - browser File object
+ * @param {File} file
  * @returns {Promise<{ rows: RawRow[], warnings: FileWarning[] }>}
- *   RawRow: { fileName, sheetName, rowIndex, rawValue }
- *   FileWarning: { fileName, message }
  */
 export async function readExcelFile(file) {
   const rows = []
@@ -78,7 +75,7 @@ export async function readExcelFile(file) {
     const arrayBuffer = await readFileAsArrayBuffer(file)
     workbook = XLSX.read(arrayBuffer, { type: 'array' })
   } catch (err) {
-    warnings.push({ fileName: file.name, message: `Lỗi đọc file: ${err.message}` })
+    warnings.push({ fileName: file.name, message: 'Lỗi đọc file: ' + err.message })
     return { rows, warnings }
   }
 
@@ -86,30 +83,24 @@ export async function readExcelFile(file) {
 
   for (const sheetName of workbook.SheetNames) {
     const sheet = workbook.Sheets[sheetName]
-
     if (!sheet || !sheet['!ref']) continue
 
     const found = findProductColumnIndex(sheet)
-    if (!found) {
-      // Skip sheet silently — not all sheets need the column
-      continue
-    }
+    if (!found) continue
 
     sheetsWithColumn++
     const { colIndex, headerRow } = found
     const range = XLSX.utils.decode_range(sheet['!ref'])
 
-    // Iterate rows below the header
     for (let r = headerRow + 1; r <= range.e.r; r++) {
       const cellAddr = XLSX.utils.encode_cell({ r, c: colIndex })
       const cell = sheet[cellAddr]
-
       if (!cell || cell.v == null || String(cell.v).trim() === '') continue
 
       rows.push({
         fileName: file.name,
         sheetName,
-        rowIndex: r + 1, // 1-based for display
+        rowIndex: r + 1,
         rawValue: String(cell.v),
       })
     }
@@ -138,7 +129,6 @@ export async function readExcelFiles(files, onProgress) {
 
   for (let i = 0; i < files.length; i++) {
     onProgress?.(i + 1, files.length)
-    // Yield to UI thread
     await new Promise(r => setTimeout(r, 0))
 
     const { rows, warnings } = await readExcelFile(files[i])

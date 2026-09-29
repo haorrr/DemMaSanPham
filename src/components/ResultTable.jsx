@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { exportToExcel } from '../utils/exporter.js'
 
 function fmt(n) {
@@ -21,7 +22,12 @@ function Highlight({ text, term }) {
 }
 
 export default function ResultTable({ products, allProducts, errors, searchTerm }) {
+  const [selectedKey, setSelectedKey] = useState(null)
   const totalCount = products.reduce((s, p) => s + p.count, 0)
+
+  function handleRowClick(key) {
+    setSelectedKey(prev => prev === key ? null : key)
+  }
 
   async function copyTable() {
     const header = 'MÃ\tMÀU\tSIZE\tMÃ MÀU SIZE\tSỐ LƯỢNG'
@@ -135,24 +141,36 @@ export default function ResultTable({ products, allProducts, errors, searchTerm 
             {products.map((p, idx) => {
               const combined = `${p.ma} ${p.mau} ${p.size}`
               const isHigh = p.count >= 10
+              const isSelected = selectedKey === p.key
               return (
-                <tr key={p.key} className={idx % 2 === 0 ? 'bg-white hover:bg-indigo-50/40' : 'bg-gray-50/60 hover:bg-indigo-50/40'}>
-                  <td className="px-4 py-2.5 font-mono font-semibold text-indigo-700">
+                <tr
+                  key={p.key}
+                  onClick={() => handleRowClick(p.key)}
+                  className={[
+                    'cursor-pointer transition-colors',
+                    isSelected
+                      ? 'bg-indigo-100 border-l-4 border-indigo-500'
+                      : idx % 2 === 0
+                        ? 'bg-white hover:bg-indigo-50/40'
+                        : 'bg-gray-50/60 hover:bg-indigo-50/40',
+                  ].join(' ')}
+                >
+                  <td className={`px-4 py-2.5 font-mono font-semibold ${isSelected ? 'text-indigo-800' : 'text-indigo-700'}`}>
                     <Highlight text={p.ma} term={searchTerm} />
                   </td>
-                  <td className="px-4 py-2.5 text-gray-700">
+                  <td className={`px-4 py-2.5 ${isSelected ? 'font-semibold text-indigo-800' : 'text-gray-700'}`}>
                     <Highlight text={p.mau} term={searchTerm} />
                   </td>
                   <td className="px-4 py-2.5">
-                    <span className="inline-block px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-xs font-medium">
+                    <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${isSelected ? 'bg-indigo-200 text-indigo-800' : 'bg-gray-100 text-gray-700'}`}>
                       <Highlight text={p.size} term={searchTerm} />
                     </span>
                   </td>
-                  <td className="px-4 py-2.5 text-gray-600">
+                  <td className={`px-4 py-2.5 ${isSelected ? 'font-semibold text-indigo-800' : 'text-gray-600'}`}>
                     <Highlight text={combined} term={searchTerm} />
                   </td>
                   <td className="px-4 py-2.5 text-right">
-                    <span className={`font-bold tabular-nums ${isHigh ? 'text-indigo-700' : 'text-gray-800'}`}>
+                    <span className={`font-bold tabular-nums ${isSelected ? 'text-indigo-900 text-base' : isHigh ? 'text-indigo-700' : 'text-gray-800'}`}>
                       {fmt(p.count)}
                     </span>
                   </td>
