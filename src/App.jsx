@@ -4,6 +4,7 @@ import Statistics from './components/Statistics.jsx'
 import FilterBar from './components/FilterBar.jsx'
 import ResultTable from './components/ResultTable.jsx'
 import ErrorTable from './components/ErrorTable.jsx'
+import Calculator from './components/Calculator.jsx'
 import { readExcelFiles } from './utils/excelReader.js'
 import { parseCell } from './utils/productParser.js'
 
@@ -191,6 +192,9 @@ export default function App() {
 
         {/* Stats */}
         {hasData && <Statistics stats={stats} />}
+
+        {/* Calculator */}
+        {hasData && <Calculator allProducts={allProducts} />}
 
         {/* Filter + Table */}
         {hasData && (
