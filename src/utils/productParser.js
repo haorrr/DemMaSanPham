@@ -73,7 +73,42 @@ export function normalize(str) {
   }
 
   // Step 4: Trim, collapse spaces, uppercase
-  return result.trim().replace(/ +/g, ' ').toUpperCase()
+  const upper = result.trim().replace(/ +/g, ' ').toUpperCase()
+
+  // Step 5: Fix common Vietnamese tone-mark typos that appear after uppercasing.
+  // E.g. "Hòng" uppercases to "HÒNG" (huyền) but should be "HỒNG" (hỏi).
+  // Map each word individually so only standalone color words are corrected.
+  return upper.split(' ').map(fixToneTypo).join(' ')
+}
+
+// Common color words where customers frequently use wrong tone marks.
+// Key = wrong uppercase form, Value = correct uppercase form.
+const TONE_TYPO_MAP = {
+  // HỒNG variants (correct: hỏi ngã on Ô)
+  'HÒNG': 'HỒNG',
+  'HÓNG': 'HỒNG',
+  'HÕNG': 'HỒNG',
+  'HỌNG': 'HỒNG',
+  // ĐỎ variants (correct: hỏi on O)
+  'ĐÒ':  'ĐỎ',
+  'ĐÓ':  'ĐỎ',
+  'ĐÕ':  'ĐỎ',
+  // VÀNG variants
+  'VÁNG': 'VÀNG',
+  'VÃNG': 'VÀNG',
+  // ĐEN (no diacritics, but common: ĐÊN)
+  'ĐÊN':  'ĐEN',
+  // TRẮNG variants
+  'TRANG': 'TRẮNG',
+  'TRĂNG': 'TRẮNG',
+  // XANH — rarely misspelled, skip
+  // KEM variants
+  'KÈM': 'KEM',
+  'KÉM': 'KEM',
+}
+
+function fixToneTypo(word) {
+  return TONE_TYPO_MAP[word] ?? word
 }
 
 function isSize(token) {

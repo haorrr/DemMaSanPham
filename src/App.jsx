@@ -13,7 +13,7 @@ const DEFAULT_FILTERS = {
   ma: '',
   mau: '',
   size: '',
-  sort: 'count_desc',
+  sort: 'mau_asc',
 }
 
 export default function App() {
