@@ -85,10 +85,12 @@ export function normalize(str) {
 // Key = wrong uppercase form, Value = correct uppercase form.
 const TONE_TYPO_MAP = {
   // HỒNG variants (correct: hỏi ngã on Ô)
-  'HÒNG': 'HỒNG',
-  'HÓNG': 'HỒNG',
-  'HÕNG': 'HỒNG',
-  'HỌNG': 'HỒNG',
+  'HONG':  'HỒNG',   // no diacritic at all
+  'HÔNG':  'HỒNG',   // missing hook on O
+  'HÒNG':  'HỒNG',
+  'HÓNG':  'HỒNG',
+  'HÕNG':  'HỒNG',
+  'HỌNG':  'HỒNG',
   // ĐỎ variants (correct: hỏi on O)
   'ĐÒ':  'ĐỎ',
   'ĐÓ':  'ĐỎ',
